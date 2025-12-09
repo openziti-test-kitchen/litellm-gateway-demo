@@ -1,0 +1,77 @@
+# Publish LiteLLM API publicly via zrok.io
+#
+# Usage: Add to .env file:
+#   COMPOSE_FILE=compose.yaml:compose.zrok.yaml
+#
+# Required environment variables:
+#   ZROK_ENABLE_TOKEN     - Your zrok.io account token (from https://api.zrok.io)
+#   ZROK_UNIQUE_NAME      - Unique subdomain name (becomes <name>.share.zrok.io)
+#
+# Authentication options (choose one):
+#   - LiteLLM OAuth: https://docs.litellm.ai/docs/proxy/oauth2
+#   - zrok OAuth:    https://docs.zrok.io/docs/guides/self-hosting/oauth/configuring-oauth/#using-oauth-with-public-shares
+
+services:
+  # set file ownership
+  zrok-init:
+    image: busybox
+    # matches uid:gid of "ziggy" in zrok container image
+    command: chown -Rc 2171:2171 /mnt/
+    user: root
+    volumes:
+      - zrok_env:/mnt
+
+  # enable zrok environment
+  zrok-enable:
+    image: ${ZROK_CONTAINER_IMAGE:-docker.io/openziti/zrok}
+    depends_on:
+      zrok-init:
+        condition: service_completed_successfully
+    entrypoint: zrok-enable.bash
+    volumes:
+      - zrok_env:/mnt
+    environment:
+      HOME: /mnt
+      ZROK_ENABLE_TOKEN:
+      ZROK_API_ENDPOINT:
+      ZROK_ENVIRONMENT_NAME: ${ZROK_ENVIRONMENT_NAME:-litellm public share}
+
+  # reserve zrok frontend subdomain and start sharing the target
+  zrok-share:
+    image: ${ZROK_CONTAINER_IMAGE:-docker.io/openziti/zrok}
+    restart: unless-stopped
+    entrypoint: zrok-share.bash
+    depends_on:
+      zrok-enable:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_started
+    networks:
+      - litellm_private
+    volumes:
+      - zrok_env:/mnt
+    environment:
+      # internal configuration
+      HOME: /mnt  # zrok homedir in container
+
+      # LiteLLM proxy target
+      ZROK_UNIQUE_NAME:                        # REQUIRED: unique subdomain, e.g. "mycompany-llm" -> mycompany-llm.share.zrok.io
+      ZROK_BACKEND_MODE: proxy
+      ZROK_TARGET: http://litellm-ziti-router:4000  # target the router container because it's bonded to the litellm container's network namespace for tproxy interception
+
+      # Optional: zrok OAuth authentication
+      ZROK_OAUTH_PROVIDER:  # google, github
+      ZROK_OAUTH_EMAILS:    # space-separated list of allowed email patterns
+
+      # Optional: Basic auth (mutually exclusive with OAuth)
+      ZROK_BASIC_AUTH:      # username:password
+
+      # Advanced options
+      ZROK_INSECURE:        # "--insecure" if proxy target has unverifiable TLS server certificate
+      ZROK_VERBOSE:         # "--verbose"
+      ZROK_SHARE_OPTS:      # additional arguments to "zrok reserve public" command
+      ZROK_FRONTENDS:       # "public"
+      PFXLOG_NO_JSON: "true"  # suppress JSON logging format
+
+volumes:
+  zrok_env:

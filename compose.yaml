@@ -79,7 +79,7 @@ services:
 
   # LiteLLM gateway - uses ziti-router's network namespace for transparent interception
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ghcr.io/berriai/litellm:main-stable
     network_mode: service:litellm-ziti-router
     depends_on:
       litellm-ziti-router:
@@ -98,7 +98,9 @@ services:
       # Database for UI authentication (PostgreSQL)
       DATABASE_URL: "postgresql://litellm:${POSTGRES_PASSWORD:-litellm}@litellm-db:5432/litellm"
       STORE_MODEL_IN_DB: "false"
-      # UI credentials (for admin dashboard only - API is unauthenticated)
+      # Admin UI credentials (required when UI is publicly accessible)
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:-}
       UI_USERNAME: ${UI_USERNAME:-admin}
       UI_PASSWORD: ${UI_PASSWORD:-admin}
       # Public LLM provider API keys (fallback routing)

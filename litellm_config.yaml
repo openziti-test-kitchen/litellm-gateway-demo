@@ -9,6 +9,14 @@ router_settings:
   routing_strategy: "simple-shuffle"
 
 model_list:
+  # Auto-router: semantically routes to private-model or falls back to public-model
+  - model_name: "auto-model"
+    litellm_params:
+      model: "auto_router/semantic-router"
+      auto_router_config_path: "/app/router.json"
+      auto_router_default_model: "public-model"
+      auto_router_embedding_model: "ollama/nomic-embed-text:latest"
+
   # Embedding model for auto-router semantic matching (served by Ollama)
   - model_name: "embedding-model"
     litellm_params:
@@ -32,14 +40,6 @@ model_list:
       # api_key is read from GEMINI_API_KEY environment variable
     model_info:
       description: "Public model for general queries"
-
-  # Auto-router: semantically routes to private-model or falls back to public-model
-  - model_name: "auto-router"
-    litellm_params:
-      model: "auto_router/semantic-router"
-      auto_router_config_path: "/app/router.json"
-      auto_router_default_model: "public-model"
-      auto_router_embedding_model: "ollama/nomic-embed-text:latest"
 
 # General settings
 general_settings:

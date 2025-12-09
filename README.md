@@ -112,6 +112,18 @@ COMPOSE_FILE=compose.yaml:compose.gpu.yaml
 
 > Requires NVIDIA Container Toolkit. See [NVIDIA Container Toolkit Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
+**Publish publicly via zrok.io** (optional):
+
+Add to `.env` file:
+
+```bash
+COMPOSE_FILE=compose.yaml:compose.zrok.yaml
+ZROK_ENABLE_TOKEN=your-zrok-account-token
+ZROK_UNIQUE_NAME=my-litellm-api
+```
+
+Your API will be available at `https://<ZROK_UNIQUE_NAME>.share.zrok.io`. The unique name must be lowercase alphanumeric, 4-32 characters.
+
 ### 5. Pull Ollama Models
 
 ```bash
@@ -137,20 +149,45 @@ Add the `my-user` identity to the Ziti tunneler on the device where you will acc
 curl -s http://litellm.ziti.internal:4000/v1/models | jq
 ```
 
+> **Note**: If `LITELLM_MASTER_KEY` is set (required when publicly accessible via zrok), include it in requests:
+>
+> ```bash
+> curl -s -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" http://litellm.ziti.internal:4000/v1/models | jq
+> ```
+
 ### 9. Use the Auto Router
 
-Once auto-routing is configured, requests should set `model` to the router alias (`auto-router` in this demo). LiteLLM will compare the prompt against the router configuration, dispatching to `private-model` when the utterances match and falling back to `public-model` otherwise:
+Once auto-routing is configured, requests should set `model` to the router alias (`auto-model` in this demo). LiteLLM will compare the prompt against the router configuration, dispatching to `private-model` when the utterances match and falling back to `public-model` otherwise:
 
 ```bash
 curl http://litellm.ziti.internal:4000/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
   -d '{
-    "model": "auto-router",
+    "model": "auto-model",
     "messages": [
       { "role": "user", "content": "Summarize the confidential report about our process." }
     ]
   }'
 ```
+
+> **Note**: The `Authorization` header is required when `LITELLM_MASTER_KEY` is set.
+
+### 10. Admin UI
+
+The LiteLLM Admin UI is available at `/ui`:
+
+```text
+http://litellm.ziti.internal:4000/ui
+```
+
+Or via zrok:
+
+```text
+https://<ZROK_UNIQUE_NAME>.share.zrok.io/ui
+```
+
+Login requires `UI_USERNAME` and `UI_PASSWORD` to be set in `.env` (defaults: `admin`/`admin`).
 
 ## How It Works
 
@@ -206,6 +243,59 @@ curl http://litellm.ziti.internal:4000/v1/chat/completions \
 4. If similarity is low, the prompt routes to the configured public LLM provider
 
 **Security note**: No API keys or authentication tokens are required at the application layer. Access to LiteLLM and Ollama are controlled entirely by authenticating Ziti identities authorized by Ziti service policies.
+
+### Alternative: Public Access via zrok
+
+When using `compose.zrok.yaml`, the LiteLLM API is published to the internet without requiring clients to install any Ziti software:
+
+```text
+┌─────────────────────────────────────┐
+│       User / Agent Client           │
+│    (no Ziti software required)      │
+└─────────────────────────────────────┘
+          │
+          │ HTTPS (public internet)
+          ▼
+┌─────────────────────────────────────┐
+│         zrok.io Frontend            │
+│   https://<name>.share.zrok.io      │
+└─────────────────────────────────────┘
+          │
+          │ OpenZiti overlay (zrok share)
+          ▼
+┌─────────────────────────────────────┐     ┌─────────────┐
+│  ┌─────────────────────────────┐    │     │   Public    │
+│  │       zrok-share            │    │     │   LLM API   │
+│  └─────────────────────────────┘    │     └─────────────┘
+│         │                           │            ▲
+│         ▼                           │            │
+│  ┌─────────────────────────────┐    │      low similarity
+│  │       LiteLLM Gateway       │    │            │
+│  │  (semantic similarity check)│────│────────────┘
+│  └─────────────────────────────┘    │
+│         │ high similarity           │
+│         ▼                           │
+│  ┌─────────────────────────────┐    │
+│  │     Ziti Router Sidecar     │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+          │
+          │ OpenZiti overlay (ollama-service)
+          ▼
+┌─────────────────────────────────────┐
+│  ┌─────────────────────────────┐    │
+│  │     Ziti Router Sidecar     │    │
+│  └─────────────────────────────┘    │
+│         │                           │
+│         ▼                           │
+│  ┌─────────────────────────────┐    │
+│  │          Ollama             │    │
+│  │   (private models hosted)   │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+```
+
+With zrok, any HTTP client can access the LiteLLM API via a public URL. Authentication can be configured via [zrok OAuth](https://docs.zrok.io/docs/guides/self-hosting/oauth/configuring-oauth/#using-oauth-with-public-shares) or [LiteLLM OAuth](https://docs.litellm.ai/docs/proxy/oauth2).
 
 ## License
 
