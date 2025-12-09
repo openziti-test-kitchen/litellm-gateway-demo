@@ -1,0 +1,31 @@
+{
+  "encoder_type": "litellm",
+  "encoder_name": "ollama/nomic-embed-text:latest",
+  "routes": [
+    {
+      "name": "private-model",
+      "description": "Route sensitive prompts to the private Ollama model",
+      "utterances": [
+        "What are our internal policies on",
+        "Summarize the confidential report about",
+        "Explain our proprietary process for",
+        "What is our company's strategy for",
+        "Show me the private documentation for",
+        "Access internal knowledge base about",
+        "What are the details of our contract with",
+        "Explain our internal architecture for",
+        "internal policy",
+        "confidential report",
+        "proprietary information",
+        "private data",
+        "secret document",
+        "classified information",
+        "company secrets",
+        "internal documentation",
+        "private knowledge base",
+        "AWS_SECRET_ACCESS_KEY"
+      ],
+      "score_threshold": 0.5
+    }
+  ]
+}
