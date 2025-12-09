@@ -13,9 +13,9 @@ This demonstrates how to route sensitive AI prompts to a private model while sen
 
 | Component | Purpose |
 |-----------|---------|
-| **LiteLLM** | Semantic routing LLM gateway that evaluates prompts and routes to appropriate backends |
-| **Ollama** | Hosts private models, including a fast embeddings model for semantic similarity evaluation |
-| **OpenZiti** | Zero-trust networking overlay that securely connects LiteLLM to Ollama |
+| [**LiteLLM**](https://docs.litellm.ai/docs/proxy/auto_routing) | Semantic routing LLM gateway that evaluates prompts and routes to appropriate backends |
+| [**Ollama**](https://ollama.com/) | Hosts private models, including a fast embeddings model for semantic similarity evaluation |
+| [**OpenZiti**](https://netfoundry.io/docs/openziti/learn/introduction) | Zero-trust networking overlay that securely connects LiteLLM to Ollama |
 
 ## Prerequisites
 
@@ -72,6 +72,17 @@ Edit `.env` and add:
 
 - **Public LLM API key** (at least one: OpenRouter, OpenAI, Anthropic, or Gemini)
 
+Then edit `litellm_config.yaml` to set the public model matching your API key:
+
+```yaml
+# Public model (fallback) - for general queries
+- model_name: "public-model"
+  litellm_params:
+    model: "gemini/gemini-2.0-flash"  # Change to match your API key provider
+```
+
+See [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for model name formats.
+
 ### 3. Customize Utterances
 
 Edit `litellm_config.yaml` to define what prompts should route to your private model:
@@ -123,7 +134,7 @@ Add the `my-user` identity to the Ziti tunneler on the device where you will acc
 ### 8. Test Connectivity
 
 ```bash
-curl -s http://litellm.ziti.internal:4000/models | jq
+curl -s http://litellm.ziti.internal:4000/v1/models | jq
 ```
 
 ### 9. Use the Auto Router

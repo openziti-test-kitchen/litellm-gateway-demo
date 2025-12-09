@@ -43,9 +43,6 @@ model_list:
 
 # General settings
 general_settings:
-  # Master key for LiteLLM admin API
-  master_key: ${LITELLM_MASTER_KEY}
-  
   # Logging
   drop_params: true  # Don't log sensitive parameters
 

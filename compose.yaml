@@ -98,8 +98,7 @@ services:
       # Database for UI authentication (PostgreSQL)
       DATABASE_URL: "postgresql://litellm:${POSTGRES_PASSWORD:-litellm}@litellm-db:5432/litellm"
       STORE_MODEL_IN_DB: "false"
-      # Auth credentials (override in .env)
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-litellm-master-key}
+      # UI credentials (for admin dashboard only - API is unauthenticated)
       UI_USERNAME: ${UI_USERNAME:-admin}
       UI_PASSWORD: ${UI_PASSWORD:-admin}
       # Public LLM provider API keys (fallback routing)
