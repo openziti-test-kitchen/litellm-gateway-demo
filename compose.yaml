@@ -1,0 +1,157 @@
+# LiteLLM Semantic Routing Gateway Demo
+# Two isolated networks: litellm_private (user-facing) and ollama_private (backend)
+# Each app has a ziti-router sidecar for zero-trust connectivity
+
+networks:
+  litellm_private:
+    driver: bridge
+  ollama_private:
+    driver: bridge
+
+volumes:
+  litellm-ziti-router:
+  litellm-db:
+  ollama-ziti-router:
+  ollama-data:
+
+services:
+  #############################################################################
+  # LiteLLM Stack (litellm_private network)
+  #############################################################################
+
+  # PostgreSQL database for LiteLLM UI authentication
+  litellm-db:
+    image: postgres:16-alpine
+    networks:
+      - litellm_private
+    volumes:
+      - litellm-db:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-litellm}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Ziti router sidecar for LiteLLM - binds litellm-service, dials ollama-service
+  litellm-ziti-router:
+    image: ${ZITI_ROUTER_IMAGE:-openziti/ziti-router}
+    env_file:
+      - ./identities/litellm-router.env
+      - .env
+    networks:
+      - litellm_private
+      - ollama_private  # needs access to dial ollama-service
+    volumes:
+      - litellm-ziti-router:/ziti-router
+    environment:
+      ZITI_ROUTER_ADVERTISED_ADDRESS: localhost
+      ZITI_ROUTER_MODE: tproxy
+      ZITI_BOOTSTRAP: true
+      ZITI_BOOTSTRAP_CONFIG: true
+      ZITI_BOOTSTRAP_ENROLLMENT: true
+      ZITI_AUTO_RENEW_CERTS: true
+      ZITI_ROUTER_TYPE: edge
+    command: run config.yml
+    expose:
+      - 4000
+    # ports:
+    #   - 4000:4000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ziti", "agent", "stats"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    # tproxy mode requirements
+    dns:
+      - 127.0.0.1
+      - 1.1.1.1
+    user: root
+    cap_add:
+      - NET_ADMIN
+
+  # LiteLLM gateway - uses ziti-router's network namespace for transparent interception
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    network_mode: service:litellm-ziti-router
+    depends_on:
+      litellm-ziti-router:
+        condition: service_healthy
+      litellm-db:
+        condition: service_healthy
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml:ro
+      - ./router.json:/app/router.json:ro
+    environment:
+      LITELLM_CONFIG_PATH: /app/config.yaml
+      LITELLM_LOG: DEBUG
+      # Ollama configuration for semantic_router's LiteLLMEncoder
+      OLLAMA_API_KEY: "ollama"  # Dummy key (Ollama doesn't require auth)
+      OLLAMA_API_BASE: "http://ollama.ziti.internal:11434"
+      # Database for UI authentication (PostgreSQL)
+      DATABASE_URL: "postgresql://litellm:${POSTGRES_PASSWORD:-litellm}@litellm-db:5432/litellm"
+      STORE_MODEL_IN_DB: "false"
+      # Auth credentials (override in .env)
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-litellm-master-key}
+      UI_USERNAME: ${UI_USERNAME:-admin}
+      UI_PASSWORD: ${UI_PASSWORD:-admin}
+      # Public LLM provider API keys (fallback routing)
+      OPENROUTER_API_KEY:
+      OPENAI_API_KEY:
+      ANTHROPIC_API_KEY:
+      GEMINI_API_KEY:
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    restart: unless-stopped
+
+  #############################################################################
+  # Ollama Stack (ollama_private network)
+  #############################################################################
+
+  # Ziti router sidecar for Ollama - binds ollama-service
+  ollama-ziti-router:
+    image: ${ZITI_ROUTER_IMAGE:-openziti/ziti-router}
+    env_file:
+      - ./identities/ollama-router.env
+      - .env
+    networks:
+      - ollama_private
+    volumes:
+      - ollama-ziti-router:/ziti-router
+    environment:
+      ZITI_ROUTER_ADVERTISED_ADDRESS: localhost
+      ZITI_ROUTER_MODE: host
+      ZITI_BOOTSTRAP: true
+      ZITI_BOOTSTRAP_CONFIG: true
+      ZITI_BOOTSTRAP_ENROLLMENT: true
+      ZITI_AUTO_RENEW_CERTS: true
+      ZITI_ROUTER_TYPE: edge
+    command: run config.yml --verbose
+    expose:
+      - 11434
+    # ports:
+    #   - 11434:11434
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ziti", "agent", "stats"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  # Ollama - uses ziti-router's network namespace for transparent interception
+  ollama:
+    image: ollama/ollama:latest
+    network_mode: service:ollama-ziti-router
+    depends_on:
+      ollama-ziti-router:
+        condition: service_healthy
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped

@@ -1,0 +1,23 @@
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+
+# Ziti identity files (contain enrollment tokens and keys)
+identities/
+*.jwt
+*.json
+
+# Docker volumes (if using bind mounts)
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

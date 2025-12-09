@@ -1,0 +1,55 @@
+# LiteLLM Semantic Routing Configuration
+#
+# This configuration routes prompts to a private Ollama model when they
+# semantically match the configured utterances, otherwise falls back to
+# a public LLM provider.
+
+# Router settings (optional)
+router_settings:
+  routing_strategy: "simple-shuffle"
+
+model_list:
+  # Embedding model for auto-router semantic matching (served by Ollama)
+  - model_name: "embedding-model"
+    litellm_params:
+      model: "ollama/nomic-embed-text:latest"
+      api_base: "http://ollama.ziti.internal:11434"
+    model_info:
+      description: "Embeddings model for semantic routing"
+
+  # Private model (Ollama) - for sensitive/internal queries
+  - model_name: "private-model"
+    litellm_params:
+      model: "ollama/llama3.2:3b"
+      api_base: "http://ollama.ziti.internal:11434"
+    model_info:
+      description: "Private model for sensitive internal queries"
+
+  # Public model (fallback) - for general queries
+  - model_name: "public-model"
+    litellm_params:
+      model: "gemini/gemini-2.0-flash"
+      # api_key is read from GEMINI_API_KEY environment variable
+    model_info:
+      description: "Public model for general queries"
+
+  # Auto-router: semantically routes to private-model or falls back to public-model
+  - model_name: "auto-router"
+    litellm_params:
+      model: "auto_router/semantic-router"
+      auto_router_config_path: "/app/router.json"
+      auto_router_default_model: "public-model"
+      auto_router_embedding_model: "ollama/nomic-embed-text:latest"
+
+# General settings
+general_settings:
+  # Master key for LiteLLM admin API
+  master_key: ${LITELLM_MASTER_KEY}
+  
+  # Logging
+  drop_params: true  # Don't log sensitive parameters
+
+# Litellm settings
+litellm_settings:
+  # Cache settings (optional)
+  cache: false
