@@ -119,7 +119,7 @@ Add to `.env` file:
 ```bash
 COMPOSE_FILE=compose.yaml:compose.zrok.yaml
 ZROK_ENABLE_TOKEN=your-zrok-account-token
-ZROK_UNIQUE_NAME=my-litellm-api
+ZROK_UNIQUE_NAME=myllmgateway
 ```
 
 Your API will be available at `https://<ZROK_UNIQUE_NAME>.share.zrok.io`. The unique name must be lowercase alphanumeric, 4-32 characters.
