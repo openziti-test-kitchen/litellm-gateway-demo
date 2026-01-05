@@ -136,12 +136,12 @@ docker compose exec ollama ollama pull llama3.2:3b        # Private LLM (or your
 Create identities for users/agents that should access LiteLLM:
 
 ```bash
-ziti edge create identity "my-user" --role-attributes "llm-users"
+ziti edge create identity "my-user" --role-attributes "llm-users" --jwt-output-file "my-user.jwt"
 ```
 
 ### 7. Add Ziti Identity to Tunnel
 
-Add the `my-user` identity to the Ziti tunneler on the device where you will access the litellm service.
+Enroll the `my-user` identity on the device where you will access the litellm service by adding the `my-user.jwt` file to the Ziti tunneler.
 
 ### 8. Test Connectivity
 
